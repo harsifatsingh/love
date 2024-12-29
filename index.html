@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Snake Game: Girlfriend Edition</title>
+  <style>
+    /* RESET */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Helvetica Neue', sans-serif;
+      background: linear-gradient(120deg, #ffe7ec, #ffc2d1);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh; 
+      color: #444;
+    }
+
+    h1 {
+      margin-top: 20px;
+      margin-bottom: 10px;
+      color: #e91e63;
+      font-size: 2rem;
+      text-align: center;
+    }
+
+    /* PRETTIER TIMER WRAPPER */
+    .timerWrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    #datingTimerLabel {
+      background: #e91e63;
+      color: #fff;
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: bold;
+      margin-bottom: 5px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    #datingTimer {
+      background: #fff;
+      border: 2px solid #e91e63;
+      border-radius: 8px;
+      padding: 8px 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      font-size: 0.9rem;
+      color: #e91e63;
+    }
+
+    /* SCOREBOARD */
+    #scoreboard {
+      background: #fff;
+      border: 2px solid #e91e63;
+      border-radius: 8px;
+      padding: 8px 16px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      color: #e91e63;
+      font-weight: bold;
+      margin-bottom: 6px;
+      font-size: 1rem;
+    }
+
+    /* CANVAS */
+    #gameCanvas {
+      background: #ffffff;
+      border: 3px solid #e91e63;
+      border-radius: 10px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      display: block;
+      margin: 10px 0;
+    }
+
+    /* INSTRUCTIONS */
+    #instructions {
+      margin-top: 5px;
+      font-size: 14px;
+      color: #555;
+      text-align: center;
+    }
+
+    /* TOAST MESSAGE (TOP-CENTER) */
+    #toastMessage {
+      position: fixed;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #e91e63;
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 6px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+      opacity: 0; /* Hidden by default */
+      pointer-events: none;
+      transition: opacity 0.5s ease-in-out;
+      z-index: 9999;
+      max-width: 90%;
+      text-align: center;
+      line-height: 1.4;
+    }
+
+    /* SPECIAL LEFT-SIDE MESSAGE (score=50) */
+    #leftMessage {
+      position: fixed;
+      top: 50%;
+      left: 10px;
+      transform: translateY(-50%);
+      background: #ffcff8;
+      color: #e91e63;
+      padding: 14px 16px;
+      border: 2px solid #e91e63;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+      z-index: 9999;
+      max-width: 220px;
+      line-height: 1.4;
+      display: none; /* hidden by default */
+    }
+    #leftMessage a {
+      color: pink; 
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Snake Game: Girlfriend Edition</h1>
+
+  <!-- DATING TIMER AREA -->
+  <div class="timerWrapper">
+    <div id="datingTimerLabel">We started dating on May 9, 2023</div>
+    <div id="datingTimer">Loading dating timer...</div>
+  </div>
+  
+  <!-- SCOREBOARD -->
+  <div id="scoreboard">
+    You love me this much: <span id="scoreValue">0</span> hearts
+  </div>
+
+  <!-- CANVAS -->
+  <canvas id="gameCanvas" width="600" height="600"></canvas>
+
+  <!-- INSTRUCTIONS -->
+  <div id="instructions">
+    <p>Use arrow keys (↑, ↓, ←, →) to move.<br>
+       Eat the hearts; don’t collide with yourself or the walls!</p>
+  </div>
+
+  <!-- TOAST MESSAGE (top center) -->
+  <div id="toastMessage"></div>
+
+  <!-- LEFT-SIDE MESSAGE (shows at score=50) -->
+  <div id="leftMessage"></div>
+
+  <script>
+    // ==============
+    // GAME VARIABLES
+    // ==============
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const tileSize = 20;
+    const canvasSize = 600;
+    
+    // Snake array (starting in middle)
+    let snake = [
+      { x: canvasSize / 2, y: canvasSize / 2 }
+    ];
+    
+    // Movement direction (start moving right)
+    let dx = tileSize; 
+    let dy = 0;
+    
+    // Food
+    let foodX = 0;
+    let foodY = 0;
+
+    // Score
+    let score = 0;
+
+    // Images
+    const snakeHeadImg = new Image();
+    // Replace with your gf's face image or a direct URL
+    snakeHeadImg.src = 'gf-face.png';  
+
+    const heartImg = new Image();
+    // Replace with your heart image or a direct URL
+    heartImg.src = 'heart.png';  
+
+    // Game speed (ms per frame)
+    let gameSpeed = 130;
+
+    // Simple milestone array
+    const milestones = [3, 6, 9];    
+    // We'll show a special left-side message at score=50
+    const specialScore = 1;
+
+    // HTML references
+    const scoreDisplay = document.getElementById("scoreValue");
+    const toastMessageEl = document.getElementById("toastMessage");
+    const leftMessageEl = document.getElementById("leftMessage");
+
+    // ==============
+    // DATING TIMER
+    // ==============
+    // 9 May 2023, 2:30 PM IST => 2023-05-09T09:00:00Z in UTC
+    const relationshipStart = new Date('2023-05-09T09:00:00Z'); 
+    const datingTimerEl = document.getElementById('datingTimer');
+
+    function updateDatingTimer() {
+      const now = new Date();
+      const diffMs = now - relationshipStart; // difference in ms
+
+      // Convert to days, hours, minutes, seconds
+      let seconds = Math.floor(diffMs / 1000);
+      let minutes = Math.floor(seconds / 60);
+      let hours = Math.floor(minutes / 60);
+      let days = Math.floor(hours / 24);
+
+      seconds = seconds % 60;
+      minutes = minutes % 60;
+      hours = hours % 24;
+
+      datingTimerEl.textContent = 
+        `${days} days, ${hours} hrs, ${minutes} mins, ${seconds} secs (and counting!)`;
+    }
+    // Update timer every second
+    setInterval(updateDatingTimer, 1000);
+    updateDatingTimer(); // initial call
+
+    // ==============
+    // GAME INIT
+    // ==============
+    document.addEventListener("keydown", changeDirection);
+    main();
+    createFood();
+
+    // ==============
+    // GAME LOOP
+    // ==============
+    function main() {
+      if (didGameEnd()) {
+        showToast(`Game Over! You ate ${score} hearts. <br>Refresh to try again!`);
+        return; // Stop the loop
+      }
+      
+      setTimeout(function onTick() {
+        clearCanvas();
+        drawFood();
+        advanceSnake();
+        drawSnake();
+        main(); 
+      }, gameSpeed);
+    }
+
+    // Clear the canvas
+    function clearCanvas() {
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // Draw snake
+    function drawSnake() {
+      for (let i = 0; i < snake.length; i++) {
+        if (i === 0) {
+          // Head
+          ctx.drawImage(snakeHeadImg, snake[i].x, snake[i].y, tileSize, tileSize);
+        } else {
+          // Body
+          ctx.fillStyle = "#f48fb1"; 
+          ctx.fillRect(snake[i].x, snake[i].y, tileSize, tileSize);
+        }
+      }
+    }
+
+    // Move snake
+    function advanceSnake() {
+      const head = {
+        x: snake[0].x + dx,
+        y: snake[0].y + dy
+      };
+      snake.unshift(head);
+
+      // Check if we ate food
+      if (head.x === foodX && head.y === foodY) {
+        score++;
+        scoreDisplay.textContent = score; // update scoreboard
+        createFood();
+        checkMilestones(score);
+      } else {
+        // remove last segment
+        snake.pop();
+      }
+    }
+
+    // Create new food position
+    function createFood() {
+      foodX = Math.floor(Math.random() * (canvasSize / tileSize)) * tileSize;
+      foodY = Math.floor(Math.random() * (canvasSize / tileSize)) * tileSize;
+      
+      // Ensure it's not on the snake
+      snake.forEach((part) => {
+        if (part.x === foodX && part.y === foodY) {
+          createFood();
+        }
+      });
+    }
+
+    // Draw food
+    function drawFood() {
+      ctx.drawImage(heartImg, foodX, foodY, tileSize, tileSize);
+    }
+
+    // Check collisions
+    function didGameEnd() {
+      // Walls
+      if (snake[0].x < 0 || snake[0].x >= canvasSize) return true;
+      if (snake[0].y < 0 || snake[0].y >= canvasSize) return true;
+      
+      // Body collisions
+      for (let i = 1; i < snake.length; i++) {
+        if (snake[0].x === snake[i].x && snake[0].y === snake[i].y) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    // Direction changes
+    function changeDirection(e) {
+      const LEFT_KEY = 37;
+      const UP_KEY = 38;
+      const RIGHT_KEY = 39;
+      const DOWN_KEY = 40;
+      
+      const goingUp = dy === -tileSize;
+      const goingDown = dy === tileSize;
+      const goingRight = dx === tileSize;
+      const goingLeft = dx === -tileSize;
+
+      switch (e.keyCode) {
+        case LEFT_KEY:
+          if (!goingRight) {
+            dx = -tileSize;
+            dy = 0;
+          }
+          break;
+        case UP_KEY:
+          if (!goingDown) {
+            dx = 0;
+            dy = -tileSize;
+          }
+          break;
+        case RIGHT_KEY:
+          if (!goingLeft) {
+            dx = tileSize;
+            dy = 0;
+          }
+          break;
+        case DOWN_KEY:
+          if (!goingUp) {
+            dx = 0;
+            dy = tileSize;
+          }
+          break;
+      }
+    }
+
+    // Check milestones
+    function checkMilestones(currentScore) {
+      // Show toast for small milestones
+      if (milestones.includes(currentScore)) {
+        showToast(`Woo! You reached ${currentScore} hearts!`);
+      }
+      // At score=50, show special left-side message
+      if (currentScore === specialScore) {
+        leftMessageEl.innerHTML = `
+          <p style="margin:0;">
+            Hey, baby! 💕<br>
+            I love you endlessly.<br>
+            I'm so sorry if I ever hurt you... 💔<br>
+            ps I STILL LOVE YOU SM MORE!! hehe 💖<br>
+            <a href="https://www.cardofmich.com/men-women-heart-differences/" target="_blank" style="color: #e75480; text-decoration: none;">Proof 💌💌</a>
+          </p>
+          <p style="margin-top:8px;">
+            Thank you for playing, love!
+          </p>
+        `;
+        leftMessageEl.style.display = 'block';
+      }
+    }
+
+    // ==============
+    // TOAST MESSAGES (Top-Center)
+    // ==============
+    let toastTimeout;
+    function showToast(message) {
+      // Clear any existing timeout so we reset fade each time
+      if (toastTimeout) clearTimeout(toastTimeout);
+
+      toastMessageEl.innerHTML = message;
+      toastMessageEl.style.opacity = 1; // show
+
+      // Hide after 4 seconds
+      toastTimeout = setTimeout(() => {
+        toastMessageEl.style.opacity = 0; 
+      }, 4000);
+    }
+  </script>
+</body>
+</html>
